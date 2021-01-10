@@ -16,10 +16,15 @@
         <item quantity="one">%s viewer</item>
         <item quantity="other">%s viewers</item>
     </plurals>
-    <string name="views_text">%d views</string>
+    <plurals name="views_text">
+        <item quantity="one">%s view</item>
+        <item quantity="other">%s views</item>
+    </plurals>
 
     <string name="error_oauth">Login with Twitch Failed</string>
     <string name="error_streams">Error getting Streams</string>
     <string name="error_profile">Error getting Profile</string>
-    <string name="error_profile_update">Error updating profile</string>
+    <string name="twitch_avatar_image">Twitch Avatar Image</string>
+    <string name="item_desc">item desc</string>
+    <string name="name_example">Ibai</string>
 </resources>

@@ -4,122 +4,156 @@ import android.content.Context
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 import android.view.MenuItem
 import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
-import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CircleCrop
 import edu.uoc.pac4.R
-import edu.uoc.pac4.data.network.Network
 import edu.uoc.pac4.ui.login.LoginActivity
-import edu.uoc.pac4.data.SessionManager
-import edu.uoc.pac4.data.TwitchApiService
 import edu.uoc.pac4.data.network.UnauthorizedException
 import edu.uoc.pac4.data.user.User
-import kotlinx.android.synthetic.main.activity_profile.*
-import kotlinx.coroutines.launch
+import edu.uoc.pac4.databinding.ActivityProfileBinding
+import org.koin.android.viewmodel.ext.android.viewModel
+import java.text.NumberFormat
+
+/**
+ * Created by david on 01/01/21.
+ * Profile Activity
+ */
 
 class ProfileActivity : AppCompatActivity() {
 
-    private val TAG = "ProfileActivity"
+    companion object {
+        private const val TAG = "ProfileActivity"
+    }
 
-    private val twitchApiService = TwitchApiService(Network.createHttpClient(this))
+    // Binding variable for this activity
+    private lateinit var binding: ActivityProfileBinding
+    // ViewModel injection by Koin
+    private val viewModel: ProfileViewModel by viewModel()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_profile)
+        // Set binding variable for current Activity
+        binding = ActivityProfileBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        // Set update Description Button Listener
+        setUpdateDescriptionListener()
+        // Set logout Button Listener
+        setLogoutListener()
         // Get User Profile
-        lifecycleScope.launch {
-            getUserProfile()
-        }
-        // Update Description Button Listener
-        updateDescriptionButton.setOnClickListener {
+        getUserProfile()
+    }
+
+    /** Set update button listener **/
+    private fun setUpdateDescriptionListener() {
+        binding.updateDescriptionButton.setOnClickListener {
             // Hide Keyboard
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
             imm?.hideSoftInputFromWindow(it.windowToken, 0)
             // Update User Description
-            lifecycleScope.launch {
-                updateUserDescription(userDescriptionEditText.text?.toString() ?: "")
-            }
+            updateUserDescription(binding.userDescriptionEditText.text?.toString() ?: "")
         }
+    }
+
+    /** Set logout button listener **/
+    private fun setLogoutListener() {
         // Logout Button Listener
-        logoutButton.setOnClickListener {
+        binding.logoutButton.setOnClickListener {
             // Logout
             logout()
         }
     }
 
-    private suspend fun getUserProfile() {
-        progressBar.visibility = VISIBLE
-        // Retrieve the Twitch User Profile using the API
+    /** Get user data from Twitch **/
+    private fun getUserProfile() {
+        // Show Loading
+        binding.progressBar.visibility = VISIBLE
         try {
-            twitchApiService.getUser()?.let { user ->
+        // Get user from ViewModel
+        viewModel.getUser()
+        } catch (t: UnauthorizedException) {
+            Log.w(TAG, "Unauthorized Error getting user", t)
+            onUnauthorized()
+        }
+        // Observer of user
+        viewModel.userGetted.observe(this) { user ->
+            // Update UI with Streams
+            if (user != null) {
                 // Success :)
                 // Update the UI with the user data
                 setUserInfo(user)
-            } ?: run {
+            } else {
                 // Error :(
                 showError(getString(R.string.error_profile))
             }
             // Hide Loading
-            progressBar.visibility = GONE
-        } catch (t: UnauthorizedException) {
-            onUnauthorized()
+            binding.progressBar.visibility = GONE
         }
     }
 
-
-    private suspend fun updateUserDescription(description: String) {
-        progressBar.visibility = VISIBLE
-        // Update the Twitch User Description using the API
+    /** Update user description in Twitch by API **/
+    private fun updateUserDescription(description: String) {
+        // Show Loading
+        binding.progressBar.visibility = VISIBLE
         try {
-            twitchApiService.updateUserDescription(description)?.let { user ->
+        // Update user by ViewModel
+        viewModel.updateUser(description)
+        } catch (t: UnauthorizedException) {
+            Log.w(TAG, "Unauthorized Error updating description", t)
+            onUnauthorized()
+        }
+        // Observer of user
+        viewModel.userUpdate.observe(this) { user ->
+            if (user != null) {
                 // Success :)
                 // Update the UI with the user data
                 setUserInfo(user)
-            } ?: run {
+            } else {
                 // Error :(
                 showError(getString(R.string.error_profile))
             }
             // Hide Loading
-            progressBar.visibility = GONE
-        } catch (t: UnauthorizedException) {
-            onUnauthorized()
+            binding.progressBar.visibility = GONE
         }
     }
 
     private fun setUserInfo(user: User) {
         // Set Texts
-        userNameTextView.text = user.userName
-        userDescriptionEditText.setText(user.description ?: "")
+        binding.userNameTextView.text = user.userName
+        binding.userDescriptionEditText.setText(user.description ?: "")
         // Avatar Image
         user.profileImageUrl?.let {
             Glide.with(this)
                 .load(user.getSizedImage(it, 128, 128))
                 .centerCrop()
                 .transform(CircleCrop())
-                .into(imageView)
+                .into(binding.imageView)
         }
-        // Views
-        viewsText.text = getString(R.string.views_text, user.viewCount)
+        // Set Profile Views
+        val formattedViews = NumberFormat.getInstance().format(user.viewCount)
+        binding.viewsText.text = resources.getQuantityString(R.plurals.views_text, user.viewCount, formattedViews)
     }
 
+    /** Logout current session **/
     private fun logout() {
-        // Clear local session data
-        SessionManager(this).clearAccessToken()
-        SessionManager(this).clearRefreshToken()
+        // Clear local session data from data source
+        viewModel.clearAccessToken()
+        viewModel.clearRefreshToken()
         // Close this and all parent activities
         finishAffinity()
         // Open Login
         startActivity(Intent(this, LoginActivity::class.java))
     }
 
+    /** onUnauthorized func, delete current access token to try renew it **/
     private fun onUnauthorized() {
-        // Clear local access token
-        SessionManager(this).clearAccessToken()
+        // Clear local access token from data source
+        viewModel.clearAccessToken()
         // User was logged out, close screen and all parent screens and open login
         finishAffinity()
         startActivity(Intent(this, LoginActivity::class.java))
@@ -139,4 +173,6 @@ class ProfileActivity : AppCompatActivity() {
             super.onOptionsItemSelected(item)
         }
     }
+
+
 }

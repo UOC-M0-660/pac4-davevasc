@@ -117,3 +117,41 @@ Dado que las dependencias se van a utilizar en toda la aplicación, hay que crea
 Entonces se podrá obtener la instancia de la clase contenedora desde cualquier lugar de la aplicación, eso hará que tengamos dicha instancia compartida en toda la app.
 Si necesitamos que una clase en concreto esté en más lugares de la aplicación, se puede crear una “clase fábrica” de esa clase, para crear instancias de ella, y añadirla a la clase contenedor para que podamos acceder a ella.
 En caso de que la aplicación se expanda más en el futuro, se recomienda administrar el alcance y el ciclo de vida de los contenedores, para liberar memoria en caso de que sea necesario.
+
+---
+
+### Lint
+
+En Inspection Results, Android -> Lint, obtengo 19 warnings, los cuales se distribuyen en los siguientes tres tipos: Accesibility, Correctness y Performance.
+
+1. Android -> Lint -> Accesibility -> Image without contentDescription: Nos avisa de que nos falta añadir la contentDescription en algunos ImageView de los XML. Para corregirlo, basta con añadir un texto de contentDescription en las ImageView que nos indica. Ejemplo: para corregir el ImageView del avatar de la ProfileActivity, añadimos “android:contentDescription="@string/twitch_avatar_image" />” a su ImageView.
+
+2. Android -> Lint -> Correctness -> Messages -> Potential Plurals: Detecta que hay un texto en strings.xml que puede ser singular o plural en función del número de ellos. En este caso, ProfileActivity obtiene el texto de la siguiente manera: getString(R.string.views_text, user.viewCount), eso hace que el texto “X views” siempre sea plural. Para corregirlo, vamos a actualizar el views_text de strings.xml:
+    <plurals name="views_text">
+        <item quantity="one">%s view</item>
+        <item quantity="other">%s views</item>
+    </plurals>
+Ahora, en ProfileActivity, tenemos que obtener el string de la siguiente manera:
+        val formattedViews = NumberFormat.getInstance().format(user.viewCount)
+        viewsText.text = resources.getQuantityString(R.plurals.views_text, user.viewCount, formattedViews)
+Desde ahora, cuando tengamos 1 visita, se mostrará “1 view” y cuando haya más de una, se mostrará “X views”.
+
+3. Android -> Lint -> Correctness -> Obsolete Gradle Dependency -> A newer version of org.jetbrains.kotlin:kotlin-stdlib than 1.4.10 is available: 1.4.21: Signifca que ha detectado que hay una versión más actualizada del kotlin-stdlib. Para actualizarlo, he aumentado la kotlin_version a la “1.4.21" (última versión) en el Gradle Project, que a su vez es la que se le da al kotlin-stdlib. Como estoy utilizando Binding en todo el proyecto para acceder a los XML, he quitado la siguiente extensión: apply plugin: 'kotlin-android-extensions' en el Gradle App. Ahora ya detecta la versión correcta del kotlin-stdlib y ya no queda ningún warning en los ficheros Gradle.
+
+4. Android -> Lint -> Performance -> Node can be replaced by a TextView with compound drawables: Un LinearLayout que contiene un ImageView y un TextView se puede representar de forma más eficiente utilizando un único TextView. Lo corregimos de la siguiente manera: Eliminamos el LinearLayout y la ImageView, y actualizamos el TextView de la siguiente manera:
+            <TextView
+                android:id="@+id/viewsText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="10dp"
+                android:textColor="@color/colorOnBackground"
+                tools:text="100 Views"
+                android:drawablePadding="10dp"
+                app:drawableTint="@color/colorOnBackground"
+                app:drawableStartCompat="@drawable/ic_eye"  />
+La clave esté en la última línea, que es la que añade una imagen a la izquierda del texto.
+
+5. Android -> Lint -> Performance -> Overdraw: Painting regions more than once: El error me lo detecta en el activity_profile.xml, en el color de fondo. Indica que puedo estar pintando el color de fondo más de una vez. Es cierto, porque la ProfileActivity tiene el AppTheme, el cual tiene <item name="android:colorBackground">@color/backgroundColor</item>. Entonces en activity_profile.xml, le estamos asignando android:background="@color/backgroundColor”, pero no es necesario, porque el AppTheme ya está pintando el fondo de esa Activity. Así que hay que pintar los fondos de las activities mediante el Theme, no desde el propio XML. Por lo tanto, para solucionar el problema, basta con eliminar el android:background del activity_profile.xml, porque en el AppTheme ya está pintado del mismo color blanco.
+
+Finalmente, he logrado solucionar todos los Warnings, ahora al lanzar el Inspect Code, obtengo el siguiente mensaje:
+No suspicious code found. 76 files processed in 'Project 'PAC4''.

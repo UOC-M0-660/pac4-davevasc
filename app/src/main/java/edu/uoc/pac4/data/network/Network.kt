@@ -17,9 +17,14 @@ import io.ktor.http.*
 /**
  * Created by alex on 07/09/2020.
  */
-object Network {
+class Network(
+        // Add session manager like data source
+        private val sessionManager: SessionManager
+) {
 
-    private const val TAG = "Network"
+    companion object {
+        private const val TAG = "Network"
+    }
 
     fun createHttpClient(context: Context): HttpClient {
         return HttpClient(OkHttp) {
@@ -56,13 +61,13 @@ object Network {
             // Add OAuth Feature
             install(OAuthFeature) {
                 getToken = {
-                    val accessToken = SessionManager(context).getAccessToken() ?: ""
+                    val accessToken = sessionManager.getAccessToken() ?: ""
                     Log.d(TAG, "Adding Bearer header with token $accessToken")
                     accessToken
                 }
                 refreshToken = {
                     // Remove expired access token
-                    SessionManager(context).clearAccessToken()
+                    sessionManager.clearAccessToken()
                     // Launch token refresh request
                     launchTokenRefresh(context)
                 }
@@ -77,18 +82,17 @@ object Network {
     }
 
     private suspend fun launchTokenRefresh(context: Context) {
-        val sessionManager = SessionManager(context)
-        // Get Refresh Token
+        // Get Refresh Token from data source
         sessionManager.getRefreshToken()?.let { refreshToken ->
             try {
                 // Launch Refresh Request
                 val response =
-                    createHttpClient(context).post<OAuthTokensResponse>(Endpoints.tokenUrl) {
-                        parameter("client_id", OAuthConstants.clientID)
-                        parameter("client_secret", OAuthConstants.clientSecret)
-                        parameter("refresh_token", refreshToken)
-                        parameter("grant_type", "refresh_token")
-                    }
+                        createHttpClient(context).post<OAuthTokensResponse>(Endpoints.tokenUrl) {
+                            parameter("client_id", OAuthConstants.clientID)
+                            parameter("client_secret", OAuthConstants.clientSecret)
+                            parameter("refresh_token", refreshToken)
+                            parameter("grant_type", "refresh_token")
+                        }
                 Log.d(TAG, "Got new Access token ${response.accessToken}")
                 // Save new Tokens
                 sessionManager.saveAccessToken(response.accessToken)

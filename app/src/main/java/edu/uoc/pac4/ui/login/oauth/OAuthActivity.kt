@@ -1,5 +1,6 @@
 package edu.uoc.pac4.ui.login.oauth
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
@@ -10,28 +11,40 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
-import androidx.lifecycle.lifecycleScope
 import edu.uoc.pac4.ui.LaunchActivity
 import edu.uoc.pac4.R
-import edu.uoc.pac4.data.SessionManager
-import edu.uoc.pac4.data.TwitchApiService
 import edu.uoc.pac4.data.network.Endpoints
-import edu.uoc.pac4.data.network.Network
+import edu.uoc.pac4.data.network.UnauthorizedException
 import edu.uoc.pac4.data.oauth.OAuthConstants
-import kotlinx.android.synthetic.main.activity_oauth.*
-import kotlinx.coroutines.launch
+import edu.uoc.pac4.databinding.ActivityOauthBinding
+import edu.uoc.pac4.ui.streams.StreamsActivity
+import org.koin.android.viewmodel.ext.android.viewModel
+
+/**
+ * Created by david on 01/01/21.
+ * OAuth Activity
+ */
 
 class OAuthActivity : AppCompatActivity() {
 
-    private val TAG = "StreamsActivity"
+    companion object {
+        private const val TAG = "OAuthActivity"
+    }
+
+    // Binding variable for this activity
+    private lateinit var binding: ActivityOauthBinding
+    // ViewModel injection by Koin
+    private val viewModel: OAuthViewModel by viewModel()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_oauth)
+        // Set binding variable for current Activity
+        binding = ActivityOauthBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         launchOAuthAuthorization()
     }
 
-    fun buildOAuthUri(): Uri {
+    private fun buildOAuthUri(): Uri {
         return Uri.parse(Endpoints.authorizationUrl)
             .buildUpon()
             .appendQueryParameter("client_id", OAuthConstants.clientID)
@@ -42,12 +55,13 @@ class OAuthActivity : AppCompatActivity() {
             .build()
     }
 
+    @SuppressLint("SetJavaScriptEnabled")
     private fun launchOAuthAuthorization() {
         //  Create URI
         val uri = buildOAuthUri()
 
         // Set webView Redirect Listener
-        webView.webViewClient = object : WebViewClient() {
+        binding.webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
                 request: WebResourceRequest?
@@ -64,7 +78,7 @@ class OAuthActivity : AppCompatActivity() {
                                 Log.d("OAuth", "Here is the authorization code! $code")
                                 onAuthorizationCodeRetrieved(code)
                                 // Hide WebView
-                                webView.visibility = View.GONE
+                                binding.webView.visibility = View.GONE
                             } ?: run {
                                 // User cancelled the login flow
                                 // Handle error
@@ -81,55 +95,47 @@ class OAuthActivity : AppCompatActivity() {
             }
         }
         // Load OAuth Uri
-        webView.settings.javaScriptEnabled = true
-        webView.loadUrl(uri.toString())
+        binding.webView.settings.javaScriptEnabled = true
+        binding.webView.loadUrl(uri.toString())
     }
 
     // Call this method after obtaining the authorization code
     // on the WebView to obtain the tokens
     private fun onAuthorizationCodeRetrieved(authorizationCode: String) {
-
         // Show Loading Indicator
-        progressBar.visibility = View.VISIBLE
+        binding.progressBar.visibility = View.VISIBLE
 
-        // Create Twitch Service
-        val service = TwitchApiService(Network.createHttpClient(this))
-        // Launch new thread attached to this Activity.
-        // If the Activity is closed, this Thread will be cancelled
-        lifecycleScope.launch {
+        try {
+            // Do login in Twitch by ViewModel
+            viewModel.doLogin(authorizationCode)
+        } catch (t: UnauthorizedException) {
+            // Log error
+            Log.w(TAG, "Unauthorized Error getting tokens", t)
+        }
 
-            // Launch get Tokens Request
-            service.getTokens(authorizationCode)?.let { response ->
-                // Success :)
+        // Observer of login boolean
+        viewModel.login.observe(this) { login ->
 
-                Log.d(TAG, "Got Access token ${response.accessToken}")
-
-                // Save access token and refresh token using the SessionManager class
-                val sessionManager = SessionManager(this@OAuthActivity)
-                sessionManager.saveAccessToken(response.accessToken)
-                response.refreshToken?.let {
-                    sessionManager.saveRefreshToken(it)
-                }
-            } ?: run {
-                // Failure :(
-
-                // Show Error Message
+            if (login) {
+                // Login OK :) -> Open Streams Activity
+                startActivity(Intent(this@OAuthActivity, StreamsActivity::class.java))
+            } else {
+                // Login ERROR :( -> Show Error Message and LaunchActivity
                 Toast.makeText(
-                    this@OAuthActivity,
-                    getString(R.string.error_oauth),
-                    Toast.LENGTH_LONG
+                        this@OAuthActivity,
+                        getString(R.string.error_oauth),
+                        Toast.LENGTH_LONG
                 ).show()
-                // Restart Activity
-                finish()
-                startActivity(Intent(this@OAuthActivity, OAuthActivity::class.java))
+                // Clear tokens
+                viewModel.logout()
+                // Restart app to navigate and try again
+                startActivity(Intent(this@OAuthActivity, LaunchActivity::class.java))
             }
-
-            // Hide Loading Indicator
-            progressBar.visibility = View.GONE
-
-            // Restart app to navigate to StreamsActivity
-            startActivity(Intent(this@OAuthActivity, LaunchActivity::class.java))
+            // Finish current Activity
             finish()
+            // Hide Loading Indicator
+            binding.progressBar.visibility = View.GONE
         }
     }
+
 }

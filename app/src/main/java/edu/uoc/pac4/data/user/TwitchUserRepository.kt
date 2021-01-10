@@ -2,17 +2,32 @@ package edu.uoc.pac4.data.user
 
 /**
  * Created by alex on 11/21/20.
+ * Updated by david on 01/01/21.
+ * Twitch User Repository Implementation
  */
 
 class TwitchUserRepository(
-    // TODO: Add any datasources you may need
+        private val userDS: UserDataSource
 ) : UserRepository {
 
+    // Get user from Twitch
     override suspend fun getUser(): User? {
-        TODO("Not yet implemented")
+        return userDS.getUser()
     }
 
+    // Update user description on Twitch
     override suspend fun updateUser(description: String): User? {
-        TODO("Not yet implemented")
+        return userDS.updateUserDescription(description)
     }
+
+    // Clear access token by session manager
+    override fun clearAccessToken() {
+        userDS.clearAccessToken()
+    }
+
+    // Clear refresh token by session manager
+    override fun clearRefreshToken() {
+        userDS.clearRefreshToken()
+    }
+
 }
