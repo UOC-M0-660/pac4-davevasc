@@ -16,26 +16,20 @@
             android:id="@+id/imageView"
             android:layout_width="match_parent"
             android:layout_height="@dimen/stream_item_image_height"
-            tools:src="@color/black" />
+            tools:src="@color/black"
+            android:contentDescription="@string/item_desc" />
 
-        <LinearLayout
-            android:id="@+id/viewsContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="@dimen/margin_medium"
-            android:layout_marginTop="@dimen/margin_medium"
-            android:orientation="horizontal">
-            <ImageView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="@dimen/margin_small"
-                android:src="@drawable/ic_eye"/>
+
+
             <TextView
                 android:id="@+id/viewsText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                tools:text="100 Views"/>
-        </LinearLayout>
+                android:padding="10dp"
+                tools:text="100 Views"
+                android:drawablePadding="10dp"
+                app:drawableStartCompat="@drawable/ic_eye" />
+
 
         <TextView
             android:id="@+id/title"
@@ -46,7 +40,7 @@
             android:layout_marginTop="@dimen/margin_medium"
             android:layout_marginEnd="@dimen/margin_medium"
             android:lines="1"
-            tools:text="ibai" />
+            tools:text="@string/name_example" />
 
         <TextView
             android:id="@+id/description"

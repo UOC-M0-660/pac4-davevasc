@@ -1,13 +1,12 @@
 package edu.uoc.pac4.ui
 
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.*
 import edu.uoc.pac4.data.oauth.AuthenticationRepository
-import kotlinx.coroutines.launch
 
 /**
  * Created by alex on 11/21/20.
+ * Updated by david on 01/01/21.
+ * Launch Activity View Model
  */
 
 // This is a simple ViewModel example,
@@ -20,12 +19,9 @@ class LaunchViewModel(
     // Live Data
     val isUserAvailable = MutableLiveData<Boolean>()
 
-
     // Public function that can be called from the view (Activity)
     fun getUserAvailability() {
-        // Get Availability from Repository and post result
-        viewModelScope.launch {
-            isUserAvailable.postValue(repository.isUserAvailable())
-        }
+        // Get User Availability from Repository
+        isUserAvailable.value = repository.isUserAvailable()
     }
 }
